@@ -65,13 +65,57 @@ namespace CGL {
     }
   }
 
+  float find_max(float x0, float x1, float x2) {
+    if (x0 >= x1) {
+      return (x0 >= x2) ? x0 : x2;
+    }
+    return (x1 >= x2) ? x1 : x2;
+  }
+
+  float find_min(float x0, float x1, float x2) {
+    if (x0 <= x1) {
+      return (x0 <= x2) ? x0 : x2;
+    }
+    return (x1 <= x2) ? x1 : x2;
+  }
+
+  bool is_inside_tri(float x0, float y0, float x1, float y1, float x2, float y2, float x, float y){
+    float l1 = -(x - x0) * (y1 - y0) + (y - y0) * (x1 - x0);
+    float l2 = -(x - x1) * (y2 - y1) + (y - y1) * (x2 - x1);
+    float l3 = -(x - x2) * (y0 - y2) + (y - y2) * (x0 - x2);
+
+    if (l1 >= 0 && l2 >= 0 && l3 >= 0) return true;
+    else if (l1 <=0 && l2 <= 0 && l3 <= 0) return true;
+    return false;
+  }
+
   // Rasterize a triangle.
   void RasterizerImp::rasterize_triangle(float x0, float y0,
     float x1, float y1,
     float x2, float y2,
     Color color) {
     // TODO: Task 1: Implement basic triangle rasterization here, no supersampling
-    
+
+    float scale = floor(sqrt(sample_rate));
+    x0 = floor((x0 + 0.5f) * scale);
+    x1 = floor((x1 + 0.5f) * scale);
+    x2 = floor((x2 + 0.5f) * scale);
+    y0 = floor((y0 + 0.5f) * scale);
+    y1 = floor((y1 + 0.5f) * scale);
+    y2 = floor((y2 + 0.5f) * scale);
+
+    float xmin = find_min(x0, x1, x2);
+    float xmax = find_max(x0, x1, x2);
+    float ymin = find_min(y0, y1, y2);
+    float ymax = find_max(y0, y1, y2);
+
+    for (float j = ymin; j <= ymax; j++) {
+      for (float i = xmin; i <= xmax; i++) {
+        if (is_inside_tri(x0, y0, x1, y1, x2, y2, i + 0.5f, j + 0.5f)) {
+          fill_pixel(i, j, color);
+        }
+      }
+    }
     // TODO: Task 2: Update to implement super-sampled rasterization
 
   }
