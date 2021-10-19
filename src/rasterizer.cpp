@@ -66,14 +66,6 @@ namespace CGL {
     }
     while (floor(pt[0]) <= floor(x1) && abs(pt[1] - y0) <= abs(y1 - y0)) {
       rasterize_point(pt[0], pt[1], color);
-        for (int dx = 0; dx < scale; dx++) {
-          for (int dy = 0; dy < scale; dy++) {
-            Vector2D subpixel{x + (dx + 0.5f) / scale,y + (dy + 0.5f) / scale};
-              if (is_inside_tri(subpixel, A, B, C)) {
-                fill_pixel(subpixel.x * scale, subpixel.y * scale, color);
-            }
-          }
-        }
       pt[0] += dpt[0]; pt[1] += dpt[1];
     }
   }
