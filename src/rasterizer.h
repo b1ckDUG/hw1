@@ -137,6 +137,7 @@ namespace CGL {
     // in preparation for posting pixels to the screen.
     virtual void resolve_to_framebuffer();
 
+      bool is_inside_tri(Vector2D vector2D, Vector2D vector2D1, Vector2D vector2D2, Vector2D vector2D3);
   };
 
 

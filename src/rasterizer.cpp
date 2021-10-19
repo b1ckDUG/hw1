@@ -23,7 +23,8 @@ namespace CGL {
     // It is sufficient to use the same color for all supersamples of a pixel for points and lines (not triangles)
 
 
-    sample_buffer[y * width + x] = c;
+      size_t scale = sqrt(sample_rate);
+      sample_buffer[y * (scale * width) + x] = c;
   }
 
   // Rasterize a point: simple example to help you start familiarizing
@@ -38,7 +39,12 @@ namespace CGL {
     if (sx < 0 || sx >= width) return;
     if (sy < 0 || sy >= height) return;
 
-    fill_pixel(sx, sy, color);
+    size_t scale = sqrt(sample_rate);
+      for (int dx = 0; dx < scale; dx++) {
+          for (int dy = 0; dy < scale; dy++) {
+              fill_pixel(sx * scale + dx, sy * scale + dy, color);
+          }
+      }
     return;
   }
 
@@ -58,35 +64,10 @@ namespace CGL {
       dpt[0] = x1 == x0 ? 0 : 1 / abs(m);
       dpt[1] = x1 == x0 ? (y1 - y0) / abs(y1 - y0) : m / abs(m);
     }
-
     while (floor(pt[0]) <= floor(x1) && abs(pt[1] - y0) <= abs(y1 - y0)) {
       rasterize_point(pt[0], pt[1], color);
       pt[0] += dpt[0]; pt[1] += dpt[1];
     }
-  }
-
-  float find_max(float x0, float x1, float x2) {
-    if (x0 >= x1) {
-      return (x0 >= x2) ? x0 : x2;
-    }
-    return (x1 >= x2) ? x1 : x2;
-  }
-
-  float find_min(float x0, float x1, float x2) {
-    if (x0 <= x1) {
-      return (x0 <= x2) ? x0 : x2;
-    }
-    return (x1 <= x2) ? x1 : x2;
-  }
-
-  bool is_inside_tri(float x0, float y0, float x1, float y1, float x2, float y2, float x, float y){
-    float l1 = -(x - x0) * (y1 - y0) + (y - y0) * (x1 - x0);
-    float l2 = -(x - x1) * (y2 - y1) + (y - y1) * (x2 - x1);
-    float l3 = -(x - x2) * (y0 - y2) + (y - y2) * (x0 - x2);
-
-    if (l1 >= 0 && l2 >= 0 && l3 >= 0) return true;
-    else if (l1 <=0 && l2 <= 0 && l3 <= 0) return true;
-    return false;
   }
 
   // Rasterize a triangle.
@@ -94,28 +75,29 @@ namespace CGL {
     float x1, float y1,
     float x2, float y2,
     Color color) {
-    // TODO: Task 1: Implement basic triangle rasterization here, no supersampling
+    // TODO: Task 1: Impleme nt basic triangle rasterization here, no supersampling
+    size_t xmin = (x0 <= x1) ? ((x0 <= x2) ? x0 : x2) : ((x1 <= x2) ? x1 : x2);
+    size_t xmax = (x0 >= x1) ? ((x0 >= x2) ? x0 : x2) : ((x1 >= x2) ? x1 : x2);
+    size_t ymin = (y0 <= y1) ? ((y0 <= y2) ? y0 : y2) : ((y1 <= y2) ? y1 : y2);
+    size_t ymax = (y0 >= y1) ? ((y0 >= y2) ? y0 : y2) : ((y1 >= y2) ? y1 : y2);
+    size_t scale = sqrt(sample_rate);
 
-    float scale = floor(sqrt(sample_rate));
-    x0 = floor((x0 + 0.5f) * scale);
-    x1 = floor((x1 + 0.5f) * scale);
-    x2 = floor((x2 + 0.5f) * scale);
-    y0 = floor((y0 + 0.5f) * scale);
-    y1 = floor((y1 + 0.5f) * scale);
-    y2 = floor((y2 + 0.5f) * scale);
-
-    float xmin = find_min(x0, x1, x2);
-    float xmax = find_max(x0, x1, x2);
-    float ymin = find_min(y0, y1, y2);
-    float ymax = find_max(y0, y1, y2);
-
-    for (float j = ymin; j <= ymax; j++) {
-      for (float i = xmin; i <= xmax; i++) {
-        if (is_inside_tri(x0, y0, x1, y1, x2, y2, i + 0.5f, j + 0.5f)) {
-          fill_pixel(i, j, color);
+    Vector2D A(x0, y0);
+    Vector2D B(x1, y1);
+    Vector2D C(x2, y2);
+    for (int x = xmin; x <= xmax; x++) {
+      for (int y = ymin; y <= ymax; y++) {
+        for (int dx = 0; dx < scale; dx++) {
+          for (int dy = 0; dy < scale; dy++) {
+            Vector2D subpixel{x + (dx + 0.5f) / scale,y + (dy + 0.5f) / scale};
+            if (is_inside_tri(subpixel, A, B, C)) {
+              fill_pixel(subpixel.x * scale, subpixel.y * scale, color);
+            }
+          }
         }
       }
     }
+
     // TODO: Task 2: Update to implement super-sampled rasterization
 
   }
@@ -153,7 +135,7 @@ namespace CGL {
     this->sample_rate = rate;
 
 
-    this->sample_buffer.resize(width * height, Color::White);
+    this->sample_buffer.resize(width * height * sample_rate, Color::White);
   }
 
 
@@ -167,7 +149,7 @@ namespace CGL {
     this->rgb_framebuffer_target = rgb_framebuffer;
 
 
-    this->sample_buffer.resize(width * height, Color::White);
+    this->sample_buffer.resize(width * height * sample_rate, Color::White);
   }
 
 
@@ -188,17 +170,48 @@ namespace CGL {
 
     for (int x = 0; x < width; ++x) {
       for (int y = 0; y < height; ++y) {
-        Color col = sample_buffer[y * width + x];
-
+        //Color col = sample_buffer[y * width + x];
+        size_t scale = sqrt(sample_rate);
+        Color color(0, 0, 0);
+        for (int dx = 0; dx < scale; dx++) {
+            for (int dy = 0; dy < scale; dy++) {
+                size_t sx = x * scale + dx;
+                size_t sy = y * scale + dy;
+                color += sample_buffer[sy * (scale * width) + sx];
+            }
+        }
+        color.r /= float(sample_rate);
+        color.g /= float(sample_rate);
+        color.b /= float(sample_rate);
         for (int k = 0; k < 3; ++k) {
-          this->rgb_framebuffer_target[3 * (y * width + x) + k] = (&col.r)[k] * 255;
+          this->rgb_framebuffer_target[3 * (y * width + x) + k] = (&color.r)[k] * 255;
         }
       }
+
     }
 
   }
 
-  Rasterizer::~Rasterizer() { }
+    bool RasterizerImp::is_inside_tri(Vector2D point, Vector2D A, Vector2D B, Vector2D C) {
+      Vector2D AB{B.x - A.x, B.y - A.y};
+      Vector2D BC{C.x - B.x, C.y - B.y};
+      Vector2D CA{A.x - C.x, A.y - C.y};
+      auto sign1 = cross(Vector2D{point.x - A.x, point.y - A.y}, AB);
+      auto sign2 = cross(Vector2D{point.x - B.x, point.y - B.y}, BC);
+      auto sign3 = cross(Vector2D{point.x - C.x, point.y - C.y}, CA);
+      if (sign1 > 0 && sign2 > 0 && sign3 > 0) {
+          return true;
+      }
+      if (sign1 < 0 && sign2 < 0 && sign3 < 0) {
+          return true;
+      }
+      if (sign1 == 0 || sign2 == 0 && sign3 == 0) {
+          return true;
+      }
+      return false;
+    }
+
+    Rasterizer::~Rasterizer() { }
 
 
 }// CGL
