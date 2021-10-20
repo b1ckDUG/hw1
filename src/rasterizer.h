@@ -138,6 +138,10 @@ namespace CGL {
     virtual void resolve_to_framebuffer();
 
       bool is_inside_tri(Vector2D vector2D, Vector2D vector2D1, Vector2D vector2D2, Vector2D vector2D3);
+
+      float cbc(float x, float y, float x0, float y0, float x1, float y1, float x2, float y2);
+
+      Vector2D cal_uv(int x, int y, float x0, float y0, float x1, float y1, float x2, float y2, Vector2D uv0, Vector2D uv1, Vector2D uv2);
   };
 
 

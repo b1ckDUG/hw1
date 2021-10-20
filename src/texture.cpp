@@ -8,18 +8,39 @@ namespace CGL {
 
   Color Texture::sample(const SampleParams& sp) {
     // TODO: Task 6: Fill this in.
-
+    Color res;
+    if (sp.psm == P_NEAREST) {
+        if (sp.lsm == L_ZERO) {
+            res = sample_nearest(sp.p_uv);
+        } else if (sp.lsm == L_NEAREST) {
+            res = sample_nearest(sp.p_uv, get_level(sp));
+        } else if (sp.lsm == L_LINEAR) {
+            res = (sample_nearest(sp.p_uv, get_level(sp)) + sample_nearest(sp.p_uv, get_level(sp) + 1)) * 0.5f;
+        }
+    } else if (sp.psm == P_LINEAR) {
+        if (sp.lsm == L_ZERO) {
+            res = sample_bilinear(sp.p_uv);
+        }else if (sp.lsm == L_NEAREST) {
+            res = sample_bilinear(sp.p_uv, get_level(sp));
+        }else if (sp.lsm == L_LINEAR) {
+            res = (sample_bilinear(sp.p_uv, get_level(sp)) + sample_bilinear(sp.p_uv, get_level(sp) + 1)) * 0.5f;
+        }
+    }
 
 // return magenta for invalid level
-    return Color(1, 0, 1);
+    return res;
   }
 
   float Texture::get_level(const SampleParams& sp) {
     // TODO: Task 6: Fill this in.
+    Vector2D dx_uv = sp.p_dx_uv;
+    Vector2D dy_uv = sp.p_dy_uv;
+    dx_uv.x *= width;
+    dx_uv.y *= height;
+    dy_uv.x *= width;
+    dy_uv.y *= height;
 
-
-
-    return 0;
+    return log2f(max(dx_uv.norm(), dy_uv.norm()));
   }
 
   Color MipLevel::get_texel(int tx, int ty) {
@@ -29,25 +50,28 @@ namespace CGL {
   Color Texture::sample_nearest(Vector2D uv, int level) {
     // TODO: Task 5: Fill this in.
     auto& mip = mipmap[level];
-
-
-
-
+    float x = uv.x * mip.width;
+    float y = uv.y * mip.height;
+    int sx = (int)floor(x);
+    int sy = (int)floor(y);
+    if (sx < 0 || sx >= width) return Color(255, 255, 255);
+    if (sy < 0 || sy >= height) return Color(255, 255, 255);
     // return magenta for invalid level
-    return Color(1, 0, 1);
+    return mip.get_texel(sx, sy);
   }
 
   Color Texture::sample_bilinear(Vector2D uv, int level) {
     // TODO: Task 5: Fill this in.
     auto& mip = mipmap[level];
-
-
-
-
+    float dx = uv.x / mip.width;
+    float dy = uv.y / mip.height;
+    Color c1 = sample_nearest(uv);
+    Color c2 = sample_nearest(Vector2D{uv.x - dx, uv.y});
+    Color c3 = sample_nearest(Vector2D{uv.x, uv.y - dy});
+    Color c4 = sample_nearest(Vector2D{uv.x - dx, uv.y - dy});
     // return magenta for invalid level
-    return Color(1, 0, 1);
+    return (c1 + c2 + c3 + c4) * 0.25f;
   }
-
 
 
   /****************************************************************************/

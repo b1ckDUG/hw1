@@ -76,6 +76,7 @@ namespace CGL {
     float x2, float y2,
     Color color) {
     // TODO: Task 1: Impleme nt basic triangle rasterization here, no supersampling
+    // TODO: Task 2: Update to implement super-sampled rasterization
     size_t xmin = (x0 <= x1) ? ((x0 <= x2) ? x0 : x2) : ((x1 <= x2) ? x1 : x2);
     size_t xmax = (x0 >= x1) ? ((x0 >= x2) ? x0 : x2) : ((x1 >= x2) ? x1 : x2);
     size_t ymin = (y0 <= y1) ? ((y0 <= y2) ? y0 : y2) : ((y1 <= y2) ? y1 : y2);
@@ -97,9 +98,6 @@ namespace CGL {
         }
       }
     }
-
-    // TODO: Task 2: Update to implement super-sampled rasterization
-
   }
 
 
@@ -109,9 +107,31 @@ namespace CGL {
   {
     // TODO: Task 4: Rasterize the triangle, calculating barycentric coordinates and using them to interpolate vertex colors across the triangle
     // Hint: You can reuse code from rasterize_triangle
+      size_t xmin = (x0 <= x1) ? ((x0 <= x2) ? x0 : x2) : ((x1 <= x2) ? x1 : x2);
+      size_t xmax = (x0 >= x1) ? ((x0 >= x2) ? x0 : x2) : ((x1 >= x2) ? x1 : x2);
+      size_t ymin = (y0 <= y1) ? ((y0 <= y2) ? y0 : y2) : ((y1 <= y2) ? y1 : y2);
+      size_t ymax = (y0 >= y1) ? ((y0 >= y2) ? y0 : y2) : ((y1 >= y2) ? y1 : y2);
+      size_t scale = sqrt(sample_rate);
 
-
-
+      Vector2D A(x0, y0);
+      Vector2D B(x1, y1);
+      Vector2D C(x2, y2);
+      for (int x = xmin; x <= xmax; x++) {
+          for (int y = ymin; y <= ymax; y++) {
+              for (int dx = 0; dx < scale; dx++) {
+                  for (int dy = 0; dy < scale; dy++) {
+                      Vector2D subpixel{x + (dx + 0.5f) / scale,y + (dy + 0.5f) / scale};
+                      float alpha = cbc(subpixel.x, subpixel.y, x0, y0, x1, y1, x2, y2);
+                      float beta = cbc(subpixel.x, subpixel.y, x1, y1, x2, y2, x0, y0);
+                      float gamma = cbc(subpixel.x, subpixel.y, x2, y2, x0, y0, x1, y1);
+                      Color color = alpha * c0 + beta * c1 + gamma * c2;
+                      if (is_inside_tri(subpixel, A, B, C)) {
+                          fill_pixel(subpixel.x * scale, subpixel.y * scale, color);
+                      }
+                  }
+              }
+          }
+      }
   }
 
 
@@ -123,10 +143,55 @@ namespace CGL {
     // TODO: Task 5: Fill in the SampleParams struct and pass it to the tex.sample function.
     // TODO: Task 6: Set the correct barycentric differentials in the SampleParams struct.
     // Hint: You can reuse code from rasterize_triangle/rasterize_interpolated_color_triangle
+      size_t xmin = (x0 <= x1) ? ((x0 <= x2) ? x0 : x2) : ((x1 <= x2) ? x1 : x2);
+      size_t xmax = (x0 >= x1) ? ((x0 >= x2) ? x0 : x2) : ((x1 >= x2) ? x1 : x2);
+      size_t ymin = (y0 <= y1) ? ((y0 <= y2) ? y0 : y2) : ((y1 <= y2) ? y1 : y2);
+      size_t ymax = (y0 >= y1) ? ((y0 >= y2) ? y0 : y2) : ((y1 >= y2) ? y1 : y2);
+      size_t scale = sqrt(sample_rate);
 
+      Vector2D A(x0, y0);
+      Vector2D B(x1, y1);
+      Vector2D C(x2, y2);
 
+      Vector2D uv0(u0, v0);
+      Vector2D uv1(u1, v1);
+      Vector2D uv2(u2, v2);
 
+      Color color;
+      SampleParams sp;
 
+      for (int x = xmin; x <= xmax; x++) {
+          for (int y = ymin; y <= ymax; y++) {
+              for (int dx = 0; dx < scale; dx++) {
+                  for (int dy = 0; dy < scale; dy++) {
+                      Vector2D subpixel{x + (dx + 0.5f) / scale,y + (dy + 0.5f) / scale};
+                      Vector2D uv = cal_uv(subpixel.x, subpixel.y, x0, y0, x1, y1, x2, y2, uv0, uv1, uv2);
+                      Vector2D dx_uv = cal_uv(subpixel.x + 1, subpixel.y, x0, y0, x1, y1, x2, y2, uv0, uv1, uv2);
+                      Vector2D dy_uv = cal_uv(subpixel.x, subpixel.y + 1, x0, y0, x1, y1, x2, y2, uv0, uv1, uv2);
+                      dx_uv -= uv;
+                      dy_uv -= uv;
+
+                      sp.p_uv = uv;
+                      sp.p_dx_uv = dx_uv;
+                      sp.p_dy_uv = dy_uv;
+                      sp.lsm = lsm;
+                      sp.psm = psm;
+
+                      color = tex.sample(sp);
+                      /*
+                      if (psm == P_NEAREST) {
+                          color = tex.sample_nearest(uv);
+                      } else {
+                          color = tex.sample_bilinear(uv);
+                      }
+                      */
+                      if (is_inside_tri(subpixel, A, B, C)) {
+                          fill_pixel(subpixel.x * scale, subpixel.y * scale, color);
+                      }
+                  }
+              }
+          }
+      }
   }
 
   void RasterizerImp::set_sample_rate(unsigned int rate) {
@@ -209,6 +274,19 @@ namespace CGL {
           return true;
       }
       return false;
+    }
+
+    float RasterizerImp::cbc(float x, float y, float x0, float y0, float x1, float y1, float x2, float y2) {
+      float l1 = -(x - x1) * (y2 - y1) + (y - y1) * (x2 - x1);
+      float l2 = -(x0 - x1) * (y2 - y1) + (y0 - y1) * (x2 - x1);
+      return l1 / l2;
+    }
+
+    Vector2D RasterizerImp::cal_uv(int x, int y, float x0, float y0, float x1, float y1, float x2, float y2, Vector2D uv0, Vector2D uv1, Vector2D uv2) {
+        float alpha = cbc(x, y, x0, y0, x1, y1, x2, y2);
+        float beta = cbc(x, y, x1, y1, x2, y2, x0, y0);
+        float gamma = cbc(x, y, x2, y2, x0, y0, x1, y1);
+        return uv0 * alpha + uv1 * beta + uv2 * gamma;
     }
 
     Rasterizer::~Rasterizer() { }
